@@ -3,7 +3,7 @@ session_start();
 
 // ตั้งค่าระบบ
 define('SITE_NAME', 'Smart Order Management');
-define('SITE_URL', 'http://localhost/smart_order/');
+define('SITE_URL', 'http://localhost/pos/');
 define('ADMIN_URL', SITE_URL . 'admin/');
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
 define('TIMEZONE', 'Asia/Bangkok');
