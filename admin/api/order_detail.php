@@ -1,8 +1,7 @@
-
 <?php
-require_once '../../config/config.php';
-require_once '../../config/database.php';
-require_once '../../classes/Order.php';
+require_once '../config/config.php';
+require_once '../config/database.php';
+require_once '../classes/Order.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -65,18 +64,18 @@ if (!$orderDetail) {
             <tr>
                 <td><strong>สถานะคิว:</strong></td>
                 <td>
-                    <span class="badge bg-<?= getQueueStatusColor($orderDetail['queue_status']) ?>">
-                        <?= getQueueStatusText($orderDetail['queue_status']) ?>
+                    <span class="badge bg-<?= getQueueStatusColor($orderDetail['queue_status'] ?? 'waiting') ?>">
+                        <?= getQueueStatusText($orderDetail['queue_status'] ?? 'waiting') ?>
                     </span>
                 </td>
             </tr>
             <tr>
                 <td><strong>เวลาโดยประมาณ:</strong></td>
-                <td><?= $orderDetail['estimated_time'] ?> นาที</td>
+                <td><?= $orderDetail['estimated_time'] ?? '5' ?> นาที</td>
             </tr>
             <tr>
                 <td><strong>จำนวนรายการ:</strong></td>
-                <td><?= $orderDetail['item_count'] ?> รายการ</td>
+                <td><?= $orderDetail['item_count'] ?? '0' ?> รายการ</td>
             </tr>
         </table>
     </div>
@@ -98,16 +97,22 @@ if (!$orderDetail) {
             </tr>
         </thead>
         <tbody>
-            <?php foreach($orderItems as $item): ?>
-            <tr>
-                <td class="fw-bold"><?= htmlspecialchars($item['item_name']) ?></td>
-                <td><span class="badge bg-secondary"><?= htmlspecialchars($item['category']) ?></span></td>
-                <td><?= $item['quantity'] ?></td>
-                <td><?= formatCurrency($item['price']) ?></td>
-                <td class="fw-bold"><?= formatCurrency($item['total_price']) ?></td>
-                <td><?= htmlspecialchars($item['special_notes']) ?></td>
-            </tr>
-            <?php endforeach; ?>
+            <?php if (!empty($orderItems)): ?>
+                <?php foreach($orderItems as $item): ?>
+                <tr>
+                    <td class="fw-bold"><?= htmlspecialchars($item['item_name']) ?></td>
+                    <td><span class="badge bg-secondary"><?= htmlspecialchars($item['category']) ?></span></td>
+                    <td><?= $item['quantity'] ?></td>
+                    <td><?= formatCurrency($item['price']) ?></td>
+                    <td class="fw-bold"><?= formatCurrency($item['total_price']) ?></td>
+                    <td><?= htmlspecialchars($item['special_notes'] ?? '') ?></td>
+                </tr>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <tr>
+                    <td colspan="6" class="text-center text-muted">ไม่พบรายการอาหาร</td>
+                </tr>
+            <?php endif; ?>
         </tbody>
         <tfoot>
             <tr class="table-warning">
