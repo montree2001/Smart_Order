@@ -229,22 +229,4 @@ function exportOrders() {
 }
 </script>
 
-<?php
-function getPaymentColor($method) {
-    $colors = [
-        'cash' => 'success',
-        'qr_payment' => 'info',
-        'card' => 'warning'
-    ];
-    return $colors[$method] ?? 'secondary';
-}
-
-function getPaymentText($method) {
-    $texts = [
-        'cash' => 'เงินสด',
-        'qr_payment' => 'QR Payment',
-        'card' => 'บัตร'
-    ];
-    return $texts[$method] ?? $method;
-}
-?>
+<?php include 'includes/footer.php'; ?>

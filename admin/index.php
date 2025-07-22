@@ -1,5 +1,6 @@
 <?php
 require_once '../config/config.php';
+require_once '../config/database.php';
 require_once '../classes/Order.php';
 require_once '../classes/Menu.php';
 
@@ -21,7 +22,6 @@ $dailySales = $db->fetchAll("
     SELECT DATE(created_at) as date, SUM(total_amount) as sales, COUNT(*) as orders
     FROM orders 
     WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    AND status = 'completed'
     GROUP BY DATE(created_at)
     ORDER BY date
 ");
@@ -32,11 +32,11 @@ include 'includes/header.php';
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
     <div class="btn-group">
-        <button type="button" class="btn btn-outline-primary" onclick="location.reload()">
-            <i class="fas fa-sync"></i> Refresh
-        </button>
-        <button type="button" class="btn btn-primary" onclick="exportDashboard()">
+        <button type="button" class="btn btn-outline-primary">
             <i class="fas fa-download"></i> Export
+        </button>
+        <button type="button" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Refresh
         </button>
     </div>
 </div>
@@ -127,22 +127,15 @@ include 'includes/header.php';
                 <h6 class="m-0 font-weight-bold">เมนูขายดีวันนี้</h6>
             </div>
             <div class="card-body">
-                <?php if (!empty($popularItems)): ?>
-                    <?php foreach($popularItems as $item): ?>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <div class="fw-bold"><?= htmlspecialchars($item['name']) ?></div>
-                            <small class="text-muted"><?= htmlspecialchars($item['category']) ?></small>
-                        </div>
-                        <span class="badge bg-primary"><?= $item['total_sold'] ?> จาน</span>
+                <?php foreach($popularItems as $item): ?>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <div class="fw-bold"><?= htmlspecialchars($item['name']) ?></div>
+                        <small class="text-muted"><?= htmlspecialchars($item['category']) ?></small>
                     </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="text-center text-muted">
-                        <i class="fas fa-utensils fa-2x mb-2"></i>
-                        <p>ยังไม่มีข้อมูลเมนูขายดีในวันนี้</p>
-                    </div>
-                <?php endif; ?>
+                    <span class="badge bg-primary"><?= $item['total_sold'] ?> จาน</span>
+                </div>
+                <?php endforeach; ?>
             </div>
         </div>
     </div>
@@ -168,33 +161,24 @@ include 'includes/header.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (!empty($recentOrders)): ?>
-                        <?php foreach($recentOrders as $orderItem): ?>
-                        <tr>
-                            <td><span class="badge bg-info">#<?= $orderItem['queue_number'] ?></span></td>
-                            <td><?= htmlspecialchars($orderItem['customer_name']) ?></td>
-                            <td><?= formatCurrency($orderItem['total_amount']) ?></td>
-                            <td>
-                                <span class="badge bg-<?= getStatusColor($orderItem['status']) ?>">
-                                    <?= getStatusText($orderItem['status']) ?>
-                                </span>
-                            </td>
-                            <td><?= formatDateTime($orderItem['created_at']) ?></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetail(<?= $orderItem['id'] ?>)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">
-                                <i class="fas fa-inbox fa-2x mb-2"></i><br>
-                                ยังไม่มีออเดอร์ในระบบ
-                            </td>
-                        </tr>
-                    <?php endif; ?>
+                    <?php foreach($recentOrders as $orderItem): ?>
+                    <tr>
+                        <td><span class="badge bg-info">#<?= $orderItem['queue_number'] ?></span></td>
+                        <td><?= htmlspecialchars($orderItem['customer_name']) ?></td>
+                        <td><?= formatCurrency($orderItem['total_amount']) ?></td>
+                        <td>
+                            <span class="badge bg-<?= getStatusColor($orderItem['status']) ?>">
+                                <?= getStatusText($orderItem['status']) ?>
+                            </span>
+                        </td>
+                        <td><?= formatDateTime($orderItem['created_at']) ?></td>
+                        <td>
+                            <a href="order_detail.php?id=<?= $orderItem['id'] ?>" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -261,19 +245,9 @@ const salesChart = new Chart(ctx, {
     }
 });
 
-function viewOrderDetail(orderId) {
-    window.location.href = `order_management.php#order_${orderId}`;
-}
-
-function exportDashboard() {
-    window.open('export_dashboard.php', '_blank');
-}
-
 // Auto refresh every 30 seconds
 setInterval(function() {
-    if (!document.hidden) {
-        location.reload();
-    }
+    location.reload();
 }, 30000);
 </script>
 
