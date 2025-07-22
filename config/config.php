@@ -11,37 +11,73 @@ date_default_timezone_set('Asia/Bangkok');
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// ค่าคงที่ของระบบ
-define('SITE_URL', 'http://localhost/smart_order/');
-define('SITE_NAME', 'Smart Order Management System');
-define('VERSION', '1.0.0');
+// ค่าคงที่ของระบบ (ตรวจสอบก่อน define)
+if (!defined('SITE_URL')) {
+    define('SITE_URL', 'http://localhost/pos/');
+}
+if (!defined('SITE_NAME')) {
+    define('SITE_NAME', 'Smart Order Management System');
+}
+if (!defined('VERSION')) {
+    define('VERSION', '1.0.0');
+}
 
-// ตั้งค่าฐานข้อมูล
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'smart_order');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
+// ตั้งค่าฐานข้อมูล (ตรวจสอบก่อน define)
+if (!defined('DB_HOST')) {
+    define('DB_HOST', 'localhost');
+}
+if (!defined('DB_NAME')) {
+    define('DB_NAME', 'smart_order');
+}
+if (!defined('DB_USER')) {
+    define('DB_USER', 'root');
+}
+if (!defined('DB_PASS')) {
+    define('DB_PASS', '');
+}
+if (!defined('DB_CHARSET')) {
+    define('DB_CHARSET', 'utf8mb4');
+}
 
-// ตั้งค่า LINE OA
-define('LINE_CHANNEL_ACCESS_TOKEN', 'YOUR_LINE_CHANNEL_ACCESS_TOKEN');
-define('LINE_CHANNEL_SECRET', 'YOUR_LINE_CHANNEL_SECRET');
+// ตั้งค่า LINE OA (ตรวจสอบก่อน define)
+if (!defined('LINE_CHANNEL_ACCESS_TOKEN')) {
+    define('LINE_CHANNEL_ACCESS_TOKEN', 'YOUR_LINE_CHANNEL_ACCESS_TOKEN');
+}
+if (!defined('LINE_CHANNEL_SECRET')) {
+    define('LINE_CHANNEL_SECRET', 'YOUR_LINE_CHANNEL_SECRET');
+}
 
-// ตั้งค่าการอัปโหลดไฟล์
-define('UPLOAD_PATH', __DIR__ . '/../uploads/');
-define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
+// ตั้งค่าการอัปโหลดไฟล์ (ตรวจสอบก่อน define)
+if (!defined('UPLOAD_PATH')) {
+    define('UPLOAD_PATH', __DIR__ . '/../uploads/');
+}
+if (!defined('MAX_FILE_SIZE')) {
+    define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
+}
 
-// ตั้งค่า PromptPay
-define('PROMPTPAY_ID', '0123456789'); // เลขประจำตัวผู้เสียภาษี หรือ เบอร์โทร
+// ตั้งค่า PromptPay (ตรวจสอบก่อน define)
+if (!defined('PROMPTPAY_ID')) {
+    define('PROMPTPAY_ID', '0123456789'); // เลขประจำตัวผู้เสียภาษี หรือ เบอร์โทร
+}
 
-// ตั้งค่าระบบคิว
-define('QUEUE_PREFIX', 'A');
-define('QUEUE_DIGITS', 3);
+// ตั้งค่าระบบคิว (ตรวจสอบก่อน define)
+if (!defined('QUEUE_PREFIX')) {
+    define('QUEUE_PREFIX', 'A');
+}
+if (!defined('QUEUE_DIGITS')) {
+    define('QUEUE_DIGITS', 3);
+}
 
-// ตั้งค่าเสียงเรียกคิว
-define('VOICE_ENABLED', true);
-define('VOICE_LANGUAGE', 'th-TH');
-define('VOICE_SPEED', 0.8);
+// ตั้งค่าเสียงเรียกคิว (ตรวจสอบก่อน define)
+if (!defined('VOICE_ENABLED')) {
+    define('VOICE_ENABLED', true);
+}
+if (!defined('VOICE_LANGUAGE')) {
+    define('VOICE_LANGUAGE', 'th-TH');
+}
+if (!defined('VOICE_SPEED')) {
+    define('VOICE_SPEED', 0.8);
+}
 
 // ฟังก์ชันช่วยเหลือ
 function formatPrice($price) {
@@ -153,22 +189,8 @@ function getFlashMessages() {
     return $messages;
 }
 
-// ฟังก์ชันตรวจสอบสิทธิ์การเข้าถึง
-function hasPermission($permission) {
-    if (!isset($_SESSION['user_role'])) {
-        return false;
-    }
-    
-    $permissions = [
-        'admin' => ['view_all', 'edit_all', 'delete_all', 'settings'],
-        'manager' => ['view_all', 'edit_orders', 'view_reports'],
-        'staff' => ['view_orders', 'edit_orders'],
-        'kitchen' => ['view_kitchen', 'update_kitchen']
-    ];
-    
-    $userRole = $_SESSION['user_role'];
-    return in_array($permission, $permissions[$userRole] ?? []);
-}
+// ฟังก์ชันตรวจสอบสิทธิ์การเข้าถึง (ย้ายไป auth.php แล้ว)
+// ฟังก์ชันนี้อยู่ใน includes/auth.php
 
 // อัปเดต last activity
 if (isset($_SESSION['user_id'])) {
