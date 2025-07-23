@@ -1,0 +1,476 @@
+<?php
+// includes/auth.php - ระบบตรวจสอบสิทธิ์
+if (!defined('INCLUDED_AUTH')) {
+    define('INCLUDED_AUTH', true);
+}
+
+// ตรวจสอบว่าผู้ใช้ล็อกอินหรือไม่
+function isLoggedIn() {
+    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']) && isset($_SESSION['user_role']);
+}
+
+// ตรวจสอบสิทธิ์การเข้าถึง
+function hasPermission($roles = []) {
+    if (!isLoggedIn()) {
+        return false;
+    }
+    
+    if (empty($roles)) {
+        return true; // ถ้าไม่กำหนด role ก็ให้ผ่าน
+    }
+    
+    if (!is_array($roles)) {
+        $roles = [$roles];
+    }
+    
+    $userRole = $_SESSION['user_role'] ?? '';
+    return in_array($userRole, $roles);
+}
+
+// บังคับให้ล็อกอิน
+function requireLogin($redirect_url = '/admin/login.php') {
+    if (!isLoggedIn()) {
+        $current_url = $_SERVER['REQUEST_URI'];
+        $login_url = $redirect_url . '?redirect=' . urlencode($current_url);
+        
+        // ถ้าเป็น AJAX request
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            http_response_code(401);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'กรุณาเข้าสู่ระบบ', 'redirect' => $login_url]);
+            exit();
+        }
+        
+        header("Location: $login_url");
+        exit();
+    }
+}
+
+// ตรวจสอบสิทธิ์และบังคับให้มีสิทธิ์ที่กำหนด
+function checkPermission($roles = [], $redirect_url = '/admin/login.php') {
+    requireLogin($redirect_url);
+    
+    if (!hasPermission($roles)) {
+        // ถ้าเป็น AJAX request
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึง']);
+            exit();
+        }
+        
+        // Redirect ไปหน้า access denied หรือกลับไปหน้าแรก
+        header("Location: /admin/access-denied.php");
+        exit();
+    }
+}
+
+// เข้าสู่ระบบ
+function login($user_id, $user_data) {
+    global $connection;
+    
+    // เก็บข้อมูลใน session
+    $_SESSION['user_id'] = $user_id;
+    $_SESSION['user_role'] = $user_data['role'];
+    $_SESSION['user_name'] = $user_data['full_name'];
+    $_SESSION['username'] = $user_data['username'];
+    $_SESSION['login_time'] = time();
+    
+    // อัปเดต last_login ในฐานข้อมูล
+    $update_query = "UPDATE users SET last_login = NOW() WHERE id = " . intval($user_id);
+    mysqli_query($connection, $update_query);
+    
+    // สร้าง CSRF token
+    $_SESSION['csrf_token'] = generateCSRFToken();
+    
+    return true;
+}
+
+// ออกจากระบบ
+function logout() {
+    // ล้างข้อมูล session
+    session_unset();
+    session_destroy();
+    
+    // ลบ cookies (ถ้ามี)
+    if (isset($_COOKIE[session_name()])) {
+        setcookie(session_name(), '', time() - 3600, '/');
+    }
+    
+    // เริ่ม session ใหม่
+    session_start();
+    session_regenerate_id(true);
+    
+    return true;
+}
+
+// ตรวจสอบรหัสผ่าน
+function verifyPassword($password, $hash) {
+    return password_verify($password, $hash);
+}
+
+// สร้างรหัสผ่านที่เข้ารหัสแล้ว
+function hashPassword($password) {
+    return password_hash($password, PASSWORD_DEFAULT);
+}
+
+// สร้าง CSRF Token
+function generateCSRFToken() {
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// ตรวจสอบ CSRF Token
+function validateCSRFToken($token) {
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// ป้องกัน Session Fixation
+function regenerateSession() {
+    session_regenerate_id(true);
+}
+
+// ตรวจสอบ Session timeout
+function checkSessionTimeout($timeout_minutes = 480) { // 8 ชั่วโมงเริ่มต้น
+    if (isset($_SESSION['login_time'])) {
+        $session_duration = time() - $_SESSION['login_time'];
+        if ($session_duration > ($timeout_minutes * 60)) {
+            logout();
+            return false;
+        }
+    }
+    return true;
+}
+
+// ตรวจสอบ IP Address (ป้องกัน Session Hijacking)
+function validateSessionIP() {
+    $current_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    
+    if (isset($_SESSION['session_ip'])) {
+        if ($_SESSION['session_ip'] !== $current_ip) {
+            logout();
+            return false;
+        }
+    } else {
+        $_SESSION['session_ip'] = $current_ip;
+    }
+    
+    return true;
+}
+
+// ตรวจสอบ User Agent (ป้องกัน Session Hijacking)
+function validateSessionUserAgent() {
+    $current_ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    
+    if (isset($_SESSION['session_ua'])) {
+        if ($_SESSION['session_ua'] !== $current_ua) {
+            logout();
+            return false;
+        }
+    } else {
+        $_SESSION['session_ua'] = $current_ua;
+    }
+    
+    return true;
+}
+
+// ฟังก์ชันตรวจสอบความปลอดภัยครบถ้วน
+function validateSession() {
+    if (!checkSessionTimeout()) {
+        return false;
+    }
+    
+    // คอมเมนต์ออกถ้าไม่ต้องการตรวจสอบ IP (สำหรับ mobile app)
+    // if (!validateSessionIP()) {
+    //     return false;
+    // }
+    
+    // คอมเมนต์ออกถ้าไม่ต้องการตรวจสอบ User Agent
+    // if (!validateSessionUserAgent()) {
+    //     return false;
+    // }
+    
+    return true;
+}
+
+// ดึงข้อมูลผู้ใช้ปัจจุบัน
+function getCurrentUser() {
+    global $connection;
+    
+    if (!isLoggedIn()) {
+        return null;
+    }
+    
+    $user_id = intval($_SESSION['user_id']);
+    $query = "SELECT * FROM users WHERE id = $user_id AND is_active = 1 LIMIT 1";
+    $result = mysqli_query($connection, $query);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        return mysqli_fetch_assoc($result);
+    }
+    
+    return null;
+}
+
+// ดึงสิทธิ์ของผู้ใช้ปัจจุบัน
+function getCurrentUserRole() {
+    return $_SESSION['user_role'] ?? null;
+}
+
+// ตรวจสอบว่าเป็น Admin หรือไม่
+function isAdmin() {
+    return getCurrentUserRole() === 'admin';
+}
+
+// ตรวจสอบว่าเป็น Manager หรือไม่
+function isManager() {
+    $role = getCurrentUserRole();
+    return in_array($role, ['admin', 'manager']);
+}
+
+// ตรวจสอบว่าเป็นพนักงาน POS หรือไม่
+function isPOSStaff() {
+    $role = getCurrentUserRole();
+    return in_array($role, ['admin', 'manager', 'pos_staff']);
+}
+
+// ตรวจสอบว่าเป็นพนักงานครัวหรือไม่
+function isKitchenStaff() {
+    $role = getCurrentUserRole();
+    return in_array($role, ['admin', 'manager', 'kitchen_staff']);
+}
+
+// ล็อกกิจกรรมการเข้าสู่ระบบ
+function logUserActivity($action, $details = '') {
+    global $connection;
+    
+    if (!isLoggedIn()) {
+        return false;
+    }
+    
+    $user_id = intval($_SESSION['user_id']);
+    $action = mysqli_real_escape_string($connection, $action);
+    $details = mysqli_real_escape_string($connection, $details);
+    $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    
+    $query = "
+        INSERT INTO user_activity_logs 
+        (user_id, action, details, ip_address, user_agent, created_at) 
+        VALUES ($user_id, '$action', '$details', '$ip_address', '$user_agent', NOW())
+    ";
+    
+    return mysqli_query($connection, $query);
+}
+
+// ตรวจสอบการเข้าสู่ระบบหลายครั้งที่ผิด
+function checkLoginAttempts($username, $max_attempts = 5, $lockout_time = 900) { // 15 นาที
+    global $connection;
+    
+    $username = mysqli_real_escape_string($connection, $username);
+    $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+    $cutoff_time = date('Y-m-d H:i:s', time() - $lockout_time);
+    
+    $query = "
+        SELECT COUNT(*) as attempts 
+        FROM login_attempts 
+        WHERE (username = '$username' OR ip_address = '$ip_address') 
+        AND success = 0 
+        AND attempted_at > '$cutoff_time'
+    ";
+    
+    $result = mysqli_query($connection, $query);
+    $data = mysqli_fetch_assoc($result);
+    
+    return ($data['attempts'] ?? 0) < $max_attempts;
+}
+
+// บันทึกการพยายามเข้าสู่ระบบ
+function recordLoginAttempt($username, $success = false) {
+    global $connection;
+    
+    $username = mysqli_real_escape_string($connection, $username);
+    $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $success_int = $success ? 1 : 0;
+    
+    $query = "
+        INSERT INTO login_attempts 
+        (username, ip_address, user_agent, success, attempted_at) 
+        VALUES ('$username', '$ip_address', '$user_agent', $success_int, NOW())
+    ";
+    
+    return mysqli_query($connection, $query);
+}
+
+// ล้างการพยายามเข้าสู่ระบบที่ผิด
+function clearLoginAttempts($username) {
+    global $connection;
+    
+    $username = mysqli_real_escape_string($connection, $username);
+    $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+    
+    $query = "
+        DELETE FROM login_attempts 
+        WHERE (username = '$username' OR ip_address = '$ip_address') 
+        AND success = 0
+    ";
+    
+    return mysqli_query($connection, $query);
+}
+
+// ฟังก์ชันเข้ารหัสข้อมูลสำคัญ
+function encryptSensitiveData($data, $key = null) {
+    if ($key === null) {
+        $key = $_SESSION['csrf_token'] ?? 'default_key';
+    }
+    
+    $method = 'AES-256-CBC';
+    $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($method));
+    $encrypted = openssl_encrypt($data, $method, $key, 0, $iv);
+    
+    return base64_encode($iv . $encrypted);
+}
+
+// ฟังก์ชันถอดรหัสข้อมูลสำคัญ
+function decryptSensitiveData($data, $key = null) {
+    if ($key === null) {
+        $key = $_SESSION['csrf_token'] ?? 'default_key';
+    }
+    
+    $data = base64_decode($data);
+    $method = 'AES-256-CBC';
+    $iv_length = openssl_cipher_iv_length($method);
+    $iv = substr($data, 0, $iv_length);
+    $encrypted = substr($data, $iv_length);
+    
+    return openssl_decrypt($encrypted, $method, $key, 0, $iv);
+}
+
+// ฟังก์ชันสำหรับ Remember Me
+function setRememberMeToken($user_id) {
+    global $connection;
+    
+    $token = bin2hex(random_bytes(32));
+    $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 วัน
+    
+    // ลบ token เก่า
+    $delete_query = "DELETE FROM remember_tokens WHERE user_id = " . intval($user_id);
+    mysqli_query($connection, $delete_query);
+    
+    // สร้าง token ใหม่
+    $insert_query = "
+        INSERT INTO remember_tokens (user_id, token, expires_at) 
+        VALUES (" . intval($user_id) . ", '$token', '$expires')
+    ";
+    
+    if (mysqli_query($connection, $insert_query)) {
+        // ตั้ง cookie
+        setcookie('remember_token', $token, time() + (30 * 24 * 60 * 60), '/', '', true, true);
+        return true;
+    }
+    
+    return false;
+}
+
+// ตรวจสอบ Remember Me Token
+function checkRememberMeToken() {
+    global $connection;
+    
+    if (!isset($_COOKIE['remember_token'])) {
+        return false;
+    }
+    
+    $token = mysqli_real_escape_string($connection, $_COOKIE['remember_token']);
+    $query = "
+        SELECT rt.*, u.* 
+        FROM remember_tokens rt
+        JOIN users u ON rt.user_id = u.id
+        WHERE rt.token = '$token' 
+        AND rt.expires_at > NOW() 
+        AND u.is_active = 1
+        LIMIT 1
+    ";
+    
+    $result = mysqli_query($connection, $query);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $data = mysqli_fetch_assoc($result);
+        
+        // ล็อกอินอัตโนมัติ
+        login($data['user_id'], $data);
+        
+        // สร้าง token ใหม่เพื่อความปลอดภัย
+        setRememberMeToken($data['user_id']);
+        
+        return true;
+    } else {
+        // ลบ cookie ที่ไม่ถูกต้อง
+        setcookie('remember_token', '', time() - 3600, '/');
+    }
+    
+    return false;
+}
+
+// ลบ Remember Me Token
+function removeRememberMeToken() {
+    global $connection;
+    
+    if (isset($_COOKIE['remember_token']) && isLoggedIn()) {
+        $token = mysqli_real_escape_string($connection, $_COOKIE['remember_token']);
+        $user_id = intval($_SESSION['user_id']);
+        
+        // ลบจากฐานข้อมูล
+        $delete_query = "
+            DELETE FROM remember_tokens 
+            WHERE token = '$token' OR user_id = $user_id
+        ";
+        mysqli_query($connection, $delete_query);
+    }
+    
+    // ลบ cookie
+    setcookie('remember_token', '', time() - 3600, '/');
+}
+
+// ฟังก์ชันสำหรับ Two-Factor Authentication (ถ้าต้องการใช้)
+function generate2FASecret() {
+    return bin2hex(random_bytes(16));
+}
+
+function verify2FACode($secret, $code) {
+    // ใช้ library เช่น Google Authenticator
+    // นี่เป็นเพียงตัวอย่าง
+    return strlen($code) === 6 && is_numeric($code);
+}
+
+// เริ่มต้น session security
+function initSessionSecurity() {
+    // ตั้งค่า session security
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure', 1);
+    ini_set('session.use_strict_mode', 1);
+    
+    // เริ่ม session หากยังไม่ได้เริ่ม
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    // ตรวจสอบ Remember Me Token
+    if (!isLoggedIn()) {
+        checkRememberMeToken();
+    }
+    
+    // ตรวจสอบ session validity
+    if (isLoggedIn()) {
+        validateSession();
+    }
+}
+
+// เรียกใช้เมื่อโหลดไฟล์
+initSessionSecurity();
+
+?>

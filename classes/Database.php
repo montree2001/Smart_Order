@@ -1,7 +1,7 @@
 <?php
 class Database {
     private $host = 'localhost';
-    private $dbname = 'smart_order';
+    private $dbname = 'smart_order_system';
     private $username = 'root';
     private $password = '';
     private $pdo;
