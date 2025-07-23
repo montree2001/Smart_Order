@@ -1,8 +1,8 @@
 <?php
-// config/database.php - การเชื่อมต่อฐานข้อมูล
-if (!defined('DB_CONFIG_LOADED')) {
-    define('DB_CONFIG_LOADED', true);
-}
+/**
+ * ไฟล์ config/database.php ที่แก้ไขแล้ว
+ * แก้ปัญหา SQL syntax error และปรับปรุงการเชื่อมต่อฐานข้อมูล
+ */
 
 // การตั้งค่าฐานข้อมูล
 define('DB_HOST', 'localhost');
@@ -10,19 +10,17 @@ define('DB_NAME', 'smart_order_system');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
-define('DB_COLLATE', 'utf8mb4_unicode_ci');
 
-// ตัวแปรสำหรับการเชื่อมต่อ
+// เก็บ connection เป็น global variable
 $connection = null;
-$db_connected = false;
-$db_error = '';
+$db_error = null;
 
 // ฟังก์ชันเชื่อมต่อฐานข้อมูล
 function connect_database() {
-    global $connection, $db_connected, $db_error;
+    global $connection, $db_error;
     
     try {
-        // สร้างการเชื่อมต่อ
+        // สร้าง connection ใหม่
         $connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         
         // ตรวจสอบการเชื่อมต่อ
@@ -35,22 +33,20 @@ function connect_database() {
             throw new Exception("Error setting charset: " . $connection->error);
         }
         
-        // ตั้งค่า timezone
-        $connection->query("SET time_zone = '+07:00'");
-        
-        // ตั้งค่า SQL mode
-        $connection->query("SET sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
-        
-        $db_connected = true;
-        
-        return $connection;
+        return true;
         
     } catch (Exception $e) {
         $db_error = $e->getMessage();
-        $db_connected = false;
+        error_log("Database connection error: " . $db_error);
         
-        // Log error
-        error_log("Database Connection Error: " . $db_error);
+        // แสดง error แบบ user-friendly
+        if (strpos($db_error, 'Access denied') !== false) {
+            $db_error = "รหัสผ่านฐานข้อมูลไม่ถูกต้อง";
+        } elseif (strpos($db_error, 'Unknown database') !== false) {
+            $db_error = "ไม่พบฐานข้อมูล '" . DB_NAME . "'";
+        } elseif (strpos($db_error, "Can't connect") !== false) {
+            $db_error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ฐานข้อมูลได้";
+        }
         
         return false;
     }
@@ -58,13 +54,13 @@ function connect_database() {
 
 // ฟังก์ชันตรวจสอบการเชื่อมต่อ
 function check_database_connection() {
-    global $connection, $db_connected;
+    global $connection;
     
-    if (!$db_connected || !$connection || $connection->connect_error) {
+    if (!$connection) {
         return connect_database();
     }
     
-    // Ping เพื่อตรวจสอบว่าการเชื่อมต่อยังใช้งานได้
+    // ตรวจสอบว่า connection ยังใช้งานได้หรือไม่
     if (!$connection->ping()) {
         return connect_database();
     }
@@ -72,154 +68,7 @@ function check_database_connection() {
     return true;
 }
 
-// ฟังก์ชันปิดการเชื่อมต่อ
-function close_database_connection() {
-    global $connection, $db_connected;
-    
-    if ($connection && $db_connected) {
-        $connection->close();
-        $connection = null;
-        $db_connected = false;
-    }
-}
-
-// ฟังก์ชัน execute query แบบปลอดภัย
-function safe_query($query, $params = [], $types = '') {
-    global $connection;
-    
-    if (!check_database_connection()) {
-        return false;
-    }
-    
-    if (empty($params)) {
-        return $connection->query($query);
-    }
-    
-    $stmt = $connection->prepare($query);
-    if (!$stmt) {
-        error_log("Prepare failed: " . $connection->error);
-        return false;
-    }
-    
-    if (!empty($params)) {
-        if (empty($types)) {
-            // สร้าง types string อัตโนมัติ
-            $types = str_repeat('s', count($params));
-        }
-        $stmt->bind_param($types, ...$params);
-    }
-    
-    $result = $stmt->execute();
-    
-    if (!$result) {
-        error_log("Execute failed: " . $stmt->error);
-        $stmt->close();
-        return false;
-    }
-    
-    // สำหรับ SELECT
-    if (stripos(trim($query), 'SELECT') === 0) {
-        $result = $stmt->get_result();
-        $stmt->close();
-        return $result;
-    }
-    
-    // สำหรับ INSERT, UPDATE, DELETE
-    $affected_rows = $stmt->affected_rows;
-    $insert_id = $connection->insert_id;
-    $stmt->close();
-    
-    return (object) [
-        'success' => true,
-        'affected_rows' => $affected_rows,
-        'insert_id' => $insert_id
-    ];
-}
-
-// ฟังก์ชันดึงข้อมูลแถวเดียว
-function fetch_single($query, $params = [], $types = '') {
-    $result = safe_query($query, $params, $types);
-    
-    if (!$result || !is_object($result)) {
-        return false;
-    }
-    
-    return $result->fetch_assoc();
-}
-
-// ฟังก์ชันดึงข้อมูลหลายแถว
-function fetch_all($query, $params = [], $types = '') {
-    $result = safe_query($query, $params, $types);
-    
-    if (!$result || !is_object($result)) {
-        return [];
-    }
-    
-    $rows = [];
-    while ($row = $result->fetch_assoc()) {
-        $rows[] = $row;
-    }
-    
-    return $rows;
-}
-
-// ฟังก์ชันนับจำนวนแถว
-function count_rows($table, $where = '', $params = [], $types = '') {
-    $query = "SELECT COUNT(*) as count FROM `$table`";
-    
-    if (!empty($where)) {
-        $query .= " WHERE $where";
-    }
-    
-    $result = fetch_single($query, $params, $types);
-    
-    return $result ? (int)$result['count'] : 0;
-}
-
-// ฟังก์ชัน insert ข้อมูล
-function insert_data($table, $data) {
-    if (empty($data)) {
-        return false;
-    }
-    
-    $columns = array_keys($data);
-    $values = array_values($data);
-    $placeholders = str_repeat('?,', count($values) - 1) . '?';
-    
-    $query = "INSERT INTO `$table` (`" . implode('`, `', $columns) . "`) VALUES ($placeholders)";
-    
-    return safe_query($query, $values);
-}
-
-// ฟังก์ชัน update ข้อมูล
-function update_data($table, $data, $where, $where_params = []) {
-    if (empty($data)) {
-        return false;
-    }
-    
-    $set_clause = [];
-    $values = [];
-    
-    foreach ($data as $column => $value) {
-        $set_clause[] = "`$column` = ?";
-        $values[] = $value;
-    }
-    
-    $query = "UPDATE `$table` SET " . implode(', ', $set_clause) . " WHERE $where";
-    
-    // รวม parameters
-    $all_params = array_merge($values, $where_params);
-    
-    return safe_query($query, $all_params);
-}
-
-// ฟังก์ชัน delete ข้อมูล
-function delete_data($table, $where, $params = []) {
-    $query = "DELETE FROM `$table` WHERE $where";
-    return safe_query($query, $params);
-}
-
-// ฟังก์ชันตรวจสอบว่าตารางมีอยู่หรือไม่
+// ฟังก์ชันตรวจสอบว่าตารางมีอยู่หรือไม่ (แก้ไข SQL syntax)
 function table_exists($table_name) {
     global $connection;
     
@@ -227,56 +76,135 @@ function table_exists($table_name) {
         return false;
     }
     
-    $query = "SHOW TABLES LIKE ?";
-    $result = safe_query($query, [$table_name], 's');
+    try {
+        // ใช้ INFORMATION_SCHEMA แทน SHOW TABLES LIKE เพื่อหลีกเลี่ยง syntax error
+        $table_name = $connection->real_escape_string($table_name);
+        $query = "SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.TABLES 
+                  WHERE TABLE_SCHEMA = '" . DB_NAME . "' 
+                  AND TABLE_NAME = '$table_name'";
+        
+        $result = $connection->query($query);
+        
+        if (!$result) {
+            error_log("Table exists check error: " . $connection->error);
+            return false;
+        }
+        
+        $row = $result->fetch_assoc();
+        return ($row['count'] > 0);
+        
+    } catch (Exception $e) {
+        error_log("Table exists check exception: " . $e->getMessage());
+        return false;
+    }
+}
+
+// ฟังก์ชัน query ที่ปลอดภัย
+function safe_query($sql, $params = []) {
+    global $connection;
     
-    return $result && $result->num_rows > 0;
+    if (!check_database_connection()) {
+        return false;
+    }
+    
+    try {
+        // ใช้ prepared statement
+        if (!empty($params)) {
+            $stmt = $connection->prepare($sql);
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $connection->error);
+            }
+            
+            // สร้าง type string สำหรับ bind_param
+            $types = '';
+            foreach ($params as $param) {
+                if (is_int($param)) {
+                    $types .= 'i';
+                } elseif (is_float($param)) {
+                    $types .= 'd';
+                } else {
+                    $types .= 's';
+                }
+            }
+            
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            
+            return $stmt;
+        } else {
+            // Query ธรรมดา
+            $result = $connection->query($sql);
+            if (!$result) {
+                throw new Exception("Query failed: " . $connection->error);
+            }
+            return $result;
+        }
+        
+    } catch (Exception $e) {
+        error_log("Safe query error: " . $e->getMessage());
+        error_log("SQL: " . $sql);
+        return false;
+    }
 }
 
 // ฟังก์ชันรัน SQL file
 function run_sql_file($file_path) {
+    global $connection;
+    
     if (!file_exists($file_path)) {
         return ['success' => false, 'message' => 'ไม่พบไฟล์ SQL'];
     }
     
-    $sql = file_get_contents($file_path);
-    if ($sql === false) {
-        return ['success' => false, 'message' => 'ไม่สามารถอ่านไฟล์ SQL ได้'];
+    if (!check_database_connection()) {
+        return ['success' => false, 'message' => 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้'];
     }
     
-    // แยก SQL statements
-    $statements = array_filter(
-        array_map('trim', explode(';', $sql)),
-        'strlen'
-    );
-    
-    $errors = [];
-    $success_count = 0;
-    
-    foreach ($statements as $statement) {
-        if (empty($statement)) continue;
+    try {
+        $sql = file_get_contents($file_path);
         
-        $result = safe_query($statement);
-        if ($result) {
-            $success_count++;
-        } else {
-            global $connection;
-            $errors[] = $connection->error;
+        // แยก SQL statements
+        $statements = array_filter(
+            array_map('trim', explode(';', $sql)),
+            function($stmt) {
+                return !empty($stmt) && !preg_match('/^(\/\*|\-\-)/', $stmt);
+            }
+        );
+        
+        $success_count = 0;
+        $error_count = 0;
+        $errors = [];
+        
+        foreach ($statements as $statement) {
+            $result = $connection->query($statement);
+            if ($result) {
+                $success_count++;
+            } else {
+                $error_count++;
+                $errors[] = $connection->error;
+                error_log("SQL Error: " . $connection->error);
+                error_log("Statement: " . $statement);
+            }
         }
+        
+        return [
+            'success' => $error_count === 0,
+            'message' => "ดำเนินการ $success_count คำสั่ง, ผิดพลาด $error_count คำสั่ง",
+            'errors' => $errors
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            'success' => false, 
+            'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()
+        ];
     }
-    
-    return [
-        'success' => empty($errors),
-        'success_count' => $success_count,
-        'total_statements' => count($statements),
-        'errors' => $errors
-    ];
 }
 
-// ฟังก์ชัน backup ฐานข้อมูล
+// ฟังก์ชันสำรองฐานข้อมูล
 function backup_database($backup_path = null) {
     if (!$backup_path) {
-        $backup_path = '../backups/backup_' . date('Y-m-d_H-i-s') . '.sql';
+        $backup_path = __DIR__ . '/../backups/' . DB_NAME . '_' . 
+                      date('Y-m-d_H-i-s') . '.sql';
     }
     
     // สร้างโฟลเดอร์ backup หากไม่มี
@@ -287,14 +215,14 @@ function backup_database($backup_path = null) {
     
     $command = sprintf(
         'mysqldump --user=%s --password=%s --host=%s --single-transaction --routines --triggers %s > %s',
-        DB_USER,
-        DB_PASS,
-        DB_HOST,
-        DB_NAME,
-        $backup_path
+        escapeshellarg(DB_USER),
+        escapeshellarg(DB_PASS),
+        escapeshellarg(DB_HOST),
+        escapeshellarg(DB_NAME),
+        escapeshellarg($backup_path)
     );
     
-    system($command, $return_var);
+    exec($command, $output, $return_var);
     
     return $return_var === 0 ? $backup_path : false;
 }
@@ -392,34 +320,85 @@ function database_error_handler($errno, $errstr, $errfile, $errline) {
         return false;
     }
     
-    $log_message = date('Y-m-d H:i:s') . " - Database Error [$errno]: $errstr in $errfile on line $errline\n";
-    error_log($log_message, 3, '../logs/database_errors.log');
+    $log_message = date('Y-m-d H:i:s') . " [ERROR $errno] $errstr in $errfile:$errline" . PHP_EOL;
+    error_log($log_message, 3, __DIR__ . '/../logs/database_errors.log');
     
     return true;
 }
 
 // ตั้งค่า error handler
-set_error_handler('database_error_handler', E_ALL);
+set_error_handler('database_error_handler');
 
-// เชื่อมต่อฐานข้อมูลเมื่อโหลดไฟล์
-if (!$db_connected) {
-    connect_database();
+// เชื่อมต่อฐานข้อมูลทันทีเมื่อ include ไฟล์นี้
+if (!connect_database()) {
+    // แสดง error page แทนการ die
+    http_response_code(500);
+    include __DIR__ . '/../views/errors/database_error.php';
+    exit;
 }
 
-// ตรวจสอบตารางที่จำเป็นเมื่อเชื่อมต่อสำเร็จ
-if ($db_connected) {
-    $missing_tables = check_required_tables();
-    
-    if (!empty($missing_tables)) {
-        // Log missing tables
-        error_log("Missing database tables: " . implode(', ', $missing_tables));
-        
-        // สามารถสร้างตารางอัตโนมัติได้ (ถ้าต้องการ)
-        // create_initial_tables();
+// ตรวจสอบตารางที่จำเป็น
+$missing_tables = check_required_tables();
+if (!empty($missing_tables)) {
+    // สร้างตารางอัตโนมัติ หรือ redirect ไปหน้า setup
+    error_log("Missing tables: " . implode(', ', $missing_tables));
+    // แสดงหน้า setup แทนการ die
+    if (!defined('SKIP_TABLE_CHECK')) {
+        header('Location: /setup.php');
+        exit;
     }
 }
 
-// Auto-close connection เมื่อจบ script
-register_shutdown_function('close_database_connection');
+function load_system_settings() {
+    global $connection, $system_settings;
+    $system_settings = [];
+    if (!$connection) {
+        return;
+    }
+    $result = mysqli_query($connection, "SELECT setting_key, setting_value FROM system_settings");
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $system_settings[$row['setting_key']] = $row['setting_value'];
+        }
+    }
+}
 
+// ดึงแถวเดียวจากฐานข้อมูล
+function db_fetch_one($sql, $params = []) {
+    $result = safe_query($sql, $params);
+    if (!$result) return false;
+
+    // ถ้าเป็น mysqli_stmt (prepared statement)
+    if ($result instanceof mysqli_stmt) {
+        $result->store_result();
+        $meta = $result->result_metadata();
+        if (!$meta) return false;
+        $fields = [];
+        $row = [];
+        while ($field = $meta->fetch_field()) {
+            $fields[] = &$row[$field->name];
+        }
+        call_user_func_array([$result, 'bind_result'], $fields);
+        if ($result->fetch()) {
+            $assoc = [];
+            foreach ($row as $key => $val) {
+                $assoc[$key] = $val;
+            }
+            return $assoc;
+        }
+        return false;
+    }
+    // ถ้าเป็น mysqli_result (query ธรรมดา)
+    if ($result instanceof mysqli_result) {
+        return $result->fetch_assoc();
+    }
+    return false;
+}
+
+// ใช้สำหรับ execute (insert, update, delete)
+function db_execute($sql, $params = []) {
+    $stmt = safe_query($sql, $params);
+    if (!$stmt) return false;
+    return $stmt->affected_rows;
+}
 ?>

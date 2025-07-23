@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/auth.php';
+?>
 <div class="pos-navigation">
     <nav class="pos-nav">
         <div class="nav-container">
@@ -315,15 +319,13 @@ function printLastReceipt() {
     const lastReceipt = localStorage.getItem('lastReceipt');
     if (lastReceipt) {
         const printWindow = window.open('', '', 'height=600,width=400');
-        printWindow.document.write(`
-            <html>
-                <head><title>ใบเสร็จ</title></head>
-                <body>
-                    ${lastReceipt}
-                    <script>window.print(); window.close();</script>
-                </body>
-            </html>
-        `);
+        printWindow.document.write('<html>\n' +
+            '<head><title>ใบเสร็จ</title></head>\n' +
+            '<body>' +
+            lastReceipt +
+            '<script>window.print(); window.close();<\/script>' +
+            '</body>\n' +
+            '</html>');
     } else {
         showToast('ไม่พบใบเสร็จ', 'ไม่มีใบเสร็จล่าสุด', 'warning');
     }

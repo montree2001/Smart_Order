@@ -11,13 +11,13 @@ require_once '../classes/Queue.php';
 checkAuth(['admin', 'staff']);
 
 $db = new Database();
-$order = new Order($db->getConnection());
-$queue = new Queue($db->getConnection());
+$order = new Order($db);
+$queue = new Queue($db);
 
 // ดึงข้อมูลสถิติวันนี้
 $todayStats = $order->getTodayStats();
-$recentOrders = $order->getRecentOrders(5);
-$topMenus = $order->getTopMenus(4);
+$recentOrders = $order->getAllOrders(5);
+$topMenus = $order->getPopularItems(4);
 $queueStats = $queue->getQueueStats();
 
 $pageTitle = "ระบบ POS";
@@ -170,7 +170,7 @@ $activePage = "pos";
                                     <strong><?= htmlspecialchars($menu['name']) ?></strong>
                                     <small class="text-muted">฿<?= number_format($menu['price']) ?></small>
                                 </div>
-                                <span class="badge bg-primary"><?= $menu['total_orders'] ?></span>
+                                <span class="badge bg-primary"><?= $menu['total_sold'] ?></span>
                             </div>
                             <?php endforeach; ?>
                         </div>

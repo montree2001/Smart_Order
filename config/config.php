@@ -1,5 +1,4 @@
 <?php
-<<<<<<< HEAD
 // เริ่ม session เฉพาะเมื่อยังไม่ได้เริ่ม
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -51,6 +50,22 @@ if (!defined('LINE_CHANNEL_SECRET')) {
 // ตั้งค่าการอัปโหลดไฟล์ (ตรวจสอบก่อน define)
 if (!defined('UPLOAD_PATH')) {
     define('UPLOAD_PATH', __DIR__ . '/../uploads/');
+}
+// Add missing path constants
+if (!defined('IMAGE_UPLOAD_PATH')) {
+    define('IMAGE_UPLOAD_PATH', __DIR__ . '/../uploads/menu_images/');
+}
+if (!defined('DOCUMENT_UPLOAD_PATH')) {
+    define('DOCUMENT_UPLOAD_PATH', __DIR__ . '/../uploads/documents/');
+}
+if (!defined('LOGS_PATH')) {
+    define('LOGS_PATH', __DIR__ . '/../logs/');
+}
+if (!defined('CACHE_PATH')) {
+    define('CACHE_PATH', __DIR__ . '/../cache/');
+}
+if (!defined('BACKUP_PATH')) {
+    define('BACKUP_PATH', __DIR__ . '/../backups/');
 }
 if (!defined('MAX_FILE_SIZE')) {
     define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
@@ -230,186 +245,6 @@ if (!isset($_SESSION['user_id']) && basename($_SERVER['PHP_SELF']) !== 'login.ph
     $_SESSION['user_name'] = 'Admin';
     $_SESSION['user_role'] = 'admin';
     $_SESSION['login_time'] = time();
-=======
-// config/config.php - การตั้งค่าระบบ
-if (!defined('SYSTEM_CONFIG_LOADED')) {
-    define('SYSTEM_CONFIG_LOADED', true);
-}
-
-// เริ่มต้น session หากยังไม่ได้เริ่ม
-if (session_status() === PHP_SESSION_NONE) {
-    // ตั้งค่า session security
-    ini_set('session.cookie_httponly', 1);
-    ini_set('session.cookie_secure', isset($_SERVER['HTTPS']) ? 1 : 0);
-    ini_set('session.use_strict_mode', 1);
-    ini_set('session.cookie_samesite', 'Lax');
-    
-    session_start();
-}
-
-// การตั้งค่าพื้นฐาน
-define('SYSTEM_NAME', 'Smart Order Management System');
-define('SYSTEM_VERSION', '1.0.0');
-define('SYSTEM_AUTHOR', 'Smart Order Team');
-
-// การตั้งค่าเส้นทาง
-define('BASE_PATH', dirname(__DIR__));
-define('BASE_URL', ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']));
-define('ADMIN_URL', BASE_URL . '/admin');
-define('POS_URL', BASE_URL . '/pos');
-define('CUSTOMER_URL', BASE_URL . '/customer');
-define('API_URL', BASE_URL . '/api');
-
-// การตั้งค่าไฟล์และโฟลเดอร์
-define('UPLOAD_PATH', BASE_PATH . '/uploads');
-define('UPLOAD_URL', BASE_URL . '/uploads');
-define('LOGS_PATH', BASE_PATH . '/logs');
-define('CACHE_PATH', BASE_PATH . '/cache');
-define('BACKUP_PATH', BASE_PATH . '/backups');
-
-// การตั้งค่าเขตเวลา
-define('TIMEZONE', 'Asia/Bangkok');
-date_default_timezone_set(TIMEZONE);
-
-// การตั้งค่า PHP
-ini_set('max_execution_time', 300); // 5 minutes
-ini_set('memory_limit', '256M');
-ini_set('upload_max_filesize', '10M');
-ini_set('post_max_size', '12M');
-
-// การตั้งค่า Error Reporting
-if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-    ini_set('display_startup_errors', 1);
-} else {
-    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT);
-    ini_set('display_errors', 0);
-    ini_set('display_startup_errors', 0);
-    ini_set('log_errors', 1);
-    ini_set('error_log', LOGS_PATH . '/php_errors.log');
-}
-
-// การตั้งค่า Security
-define('CSRF_TOKEN_EXPIRE', 3600); // 1 hour
-define('SESSION_TIMEOUT', 28800); // 8 hours
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOGIN_LOCKOUT_TIME', 900); // 15 minutes
-define('PASSWORD_MIN_LENGTH', 6);
-define('PASSWORD_REQUIRE_UPPERCASE', false);
-define('PASSWORD_REQUIRE_LOWERCASE', false);
-define('PASSWORD_REQUIRE_NUMBERS', true);
-define('PASSWORD_REQUIRE_SPECIAL', false);
-
-// การตั้งค่า File Upload
-define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB
-define('ALLOWED_IMAGE_TYPES', ['jpg', 'jpeg', 'png', 'gif', 'webp']);
-define('ALLOWED_DOCUMENT_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx']);
-define('IMAGE_UPLOAD_PATH', UPLOAD_PATH . '/images');
-define('DOCUMENT_UPLOAD_PATH', UPLOAD_PATH . '/documents');
-
-// การตั้งค่า Email SMTP
-$smtp_config = [
-    'host' => 'smtp.gmail.com',
-    'port' => 587,
-    'username' => '', // ให้ผู้ใช้กรอก
-    'password' => '', // ให้ผู้ใช้กรอก
-    'encryption' => 'tls',
-    'from_name' => SYSTEM_NAME,
-    'from_email' => 'noreply@smartorder.com'
-];
-
-// การตั้งค่า LINE Bot
-$line_config = [
-    'channel_access_token' => '', // ให้ผู้ใช้กรอก
-    'channel_secret' => '', // ให้ผู้ใช้กรอก
-    'webhook_url' => BASE_URL . '/api/line_webhook.php'
-];
-
-// การตั้งค่า Payment Gateway
-$payment_config = [
-    'promptpay_id' => '', // ให้ผู้ใช้กรอก
-    'omise_public_key' => '', // ถ้าใช้ Omise
-    'omise_secret_key' => '', // ถ้าใช้ Omise
-    'true_money_api_key' => '', // ถ้าใช้ TrueMoney
-    'scb_easy_api_key' => '' // ถ้าใช้ SCB Easy
-];
-
-// การตั้งค่าเริ่มต้นของร้าน
-$default_shop_settings = [
-    'shop_name' => 'ร้านอาหารอัจฉริยะ',
-    'shop_phone' => '02-XXX-XXXX',
-    'shop_address' => '',
-    'shop_email' => '',
-    'shop_website' => '',
-    'tax_id' => '',
-    'tax_rate' => 7.00,
-    'service_charge_rate' => 0.00,
-    'currency' => 'THB',
-    'currency_symbol' => '฿',
-    'timezone' => TIMEZONE,
-    'default_language' => 'th',
-    'date_format' => 'd/m/Y',
-    'time_format' => 'H:i',
-    'decimal_places' => 2
-];
-
-// การตั้งค่าเริ่มต้นของระบบคิว
-$default_queue_settings = [
-    'queue_reset_daily' => true,
-    'max_queue_per_day' => 999,
-    'queue_call_timeout' => 300, // 5 minutes
-    'notification_before_queue' => 3,
-    'enable_voice_queue' => true,
-    'voice_language' => 'th',
-    'preparation_time_per_item' => 5, // minutes
-    'queue_display_refresh_interval' => 5000 // milliseconds
-];
-
-// การตั้งค่าเริ่มต้นของระบบการชำระเงิน
-$default_payment_settings = [
-    'accept_cash' => true,
-    'accept_qr' => true,
-    'accept_card' => false,
-    'accept_bank_transfer' => false,
-    'require_customer_info' => false,
-    'auto_print_receipt' => false,
-    'send_receipt_email' => false,
-    'send_receipt_line' => true
-];
-
-// การตั้งค่าเริ่มต้นของระบบแจ้งเตือน
-$default_notification_settings = [
-    'enable_line_notifications' => true,
-    'enable_email_notifications' => false,
-    'enable_sms_notifications' => false,
-    'notify_new_order' => true,
-    'notify_order_ready' => true,
-    'notify_payment_received' => true,
-    'notify_queue_called' => true
-];
-
-// ฟังก์ชันโหลดการตั้งค่าจากฐานข้อมูล
-function load_system_settings() {
-    global $connection, $system_settings;
-    
-    if (!$connection) {
-        return false;
-    }
-    
-    $query = "SELECT setting_key, setting_value FROM system_settings ORDER BY category, setting_key";
-    $result = mysqli_query($connection, $query);
-    
-    $system_settings = [];
-    
-    if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $system_settings[$row['setting_key']] = $row['setting_value'];
-        }
-    }
-    
-    return $system_settings;
->>>>>>> 4f0b250224a8b9c2467a45845675bf7ab01b4999
 }
 
 // ฟังก์ชันได้การตั้งค่า
